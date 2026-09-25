@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NE555 astable workbench</title>
+<style>
+:root{
+  --panel:#E4E7EA; --panel-2:#F2F4F5; --ink:#1B2330; --ink-2:#556070; --rule:#C3C9D0;
+  --screen:#141D27; --grid:#27384A; --grid-major:#36506A; --screen-ink:#9FB3C8;
+  --ch1:#F2C230; --ch2:#3FC6D8; --knob:#2458A6; --warn:#B3261E;
+  --font:"Segoe UI",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-c:"Bahnschrift","Segoe UI Semibold","Arial Narrow",system-ui,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --panel:#1A1F26; --panel-2:#222932; --ink:#E3E8EE; --ink-2:#9AA6B4; --rule:#343D48;
+    --screen:#0F161E; --grid:#1F2E3D; --grid-major:#2E465E; --knob:#6E9DE8; --warn:#FF8A80;
+  }
+}
+:root[data-theme="dark"]{
+  --panel:#1A1F26; --panel-2:#222932; --ink:#E3E8EE; --ink-2:#9AA6B4; --rule:#343D48;
+  --screen:#0F161E; --grid:#1F2E3D; --grid-major:#2E465E; --knob:#6E9DE8; --warn:#FF8A80;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--panel);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.45;
+  font-variant-numeric:tabular-nums}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 48px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 20px;margin-bottom:18px}
+h1{font-family:var(--font-c);font-weight:600;font-size:2.1rem;letter-spacing:.01em;margin:0}
+header p{margin:0;color:var(--ink-2);max-width:62ch}
+
+/* scope */
+.scope{background:var(--screen);border-radius:14px;padding:12px 14px 0;color:var(--screen-ink);
+  box-shadow:inset 0 0 0 1px #0006, 0 1px 0 #fff4}
+.scope-top{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:.9rem;padding:0 4px 8px}
+.ch{display:inline-flex;align-items:center;gap:7px}
+.ch i{width:18px;height:3px;border-radius:2px;display:inline-block}
+.scope-top .tb{margin-left:auto}
+.canvas-wrap{position:relative;height:clamp(240px,42vw,400px)}
+canvas{display:block;width:100%;height:100%;cursor:crosshair}
+.overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
+  padding:20px;color:var(--screen-ink);background:#0009;border-radius:6px}
+.overlay.on{display:flex}
+.hover{position:absolute;top:8px;left:8px;background:#0B1118E6;border:1px solid var(--grid-major);border-radius:6px;
+  padding:6px 9px;font-size:.85rem;pointer-events:none;display:none;line-height:1.35}
+.readouts{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--grid-major);margin:12px -14px 0}
+.ro{padding:12px 14px 14px;border-left:1px solid var(--grid)}
+.ro:first-child{border-left:0}
+.ro b{display:block;font-family:var(--font-c);font-weight:600;font-size:clamp(1.35rem,2.6vw,1.9rem);color:#EAF1F8;line-height:1.1}
+.ro span{font-size:.85rem}
+
+/* controls */
+.bench{display:grid;align-items:start;grid-template-columns:repeat(3,1fr) minmax(220px,.9fr);gap:14px;margin-top:18px}
+.part{background:var(--panel-2);border:1px solid var(--rule);border-radius:10px;padding:14px 16px 16px}
+.part h2{font-family:var(--font-c);font-size:1.35rem;font-weight:600;margin:0;display:flex;align-items:baseline;gap:8px}
+.part h2 small{font-family:var(--font);font-weight:400;font-size:.85rem;color:var(--ink-2)}
+.val{display:flex;align-items:center;gap:8px;margin:10px 0 4px}
+.val input{font:600 1.5rem/1.1 var(--font-c);width:100%;min-width:0;background:transparent;border:0;border-bottom:2px solid var(--rule);
+  color:var(--ink);padding:2px 0;border-radius:0}
+.val input:focus{outline:none;border-bottom-color:var(--knob)}
+input[type=range]{width:100%;margin:10px 0 6px;accent-color:var(--knob);height:26px}
+.limits{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label.f{display:block;font-size:.8rem;color:var(--ink-2)}
+label.f input,label.f select{display:block;width:100%;margin-top:3px;font:500 .95rem var(--font);color:var(--ink);
+  background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:6px 8px}
+label.f input:focus-visible,label.f select:focus-visible,.val input:focus-visible,button:focus-visible,input[type=range]:focus-visible{
+  outline:2px solid var(--knob);outline-offset:2px}
+.err{color:var(--warn);font-size:.8rem;min-height:1.1em;margin-top:6px}
+.side{display:flex;flex-direction:column;gap:12px}
+.check{display:flex;gap:8px;align-items:center;font-size:.9rem}
+.check input{accent-color:var(--knob);width:16px;height:16px}
+button{font:500 .9rem var(--font);color:var(--ink);background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:7px 10px;cursor:pointer}
+button:hover{border-color:var(--knob)}
+
+/* worked maths */
+.work{margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:10px 40px}
+.work h3{font-family:var(--font-c);font-weight:600;font-size:1.2rem;margin:0 0 6px}
+.eq{margin:0 0 3px;white-space:nowrap;overflow-x:auto}
+.eq em{font-style:italic;font-family:Georgia,"Times New Roman",serif}
+.eq .r{font-weight:600}
+.note{color:var(--ink-2);font-size:.9rem;margin-top:16px;max-width:75ch}
+
+@media (max-width:900px){
+  .bench{grid-template-columns:1fr 1fr}
+  .work{grid-template-columns:1fr}
+}
+@media (max-width:620px){
+  main{padding:18px 12px 36px}
+  .bench{grid-template-columns:1fr}
+  .readouts{grid-template-columns:repeat(3,1fr)}
+  .ro:nth-child(4){border-left:0}
+  .ro:nth-child(n+4){border-top:1px solid var(--grid)}
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>NE555 astable workbench</h1>
+    <p>R101 from V<sub>CC</sub> to DIS, R102 from DIS to THR/TRIG, C102 to GND. Drag a slider or type a value like 4k7, 5.1k or 150n.</p>
+  </header>
+
+  <section class="scope" aria-label="Simulated waveforms">
+    <div class="scope-top">
+      <span class="ch"><i style="background:var(--ch1)"></i>V(OUT)</span>
+      <span class="ch"><i style="background:var(--ch2)"></i>V(TRIG) capacitor</span>
+      <span class="tb" id="tb"></span>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="cv" aria-label="Output and capacitor voltage versus time"></canvas>
+      <div class="hover" id="hover"></div>
+      <div class="overlay" id="overlay">Too many cycles to draw in this window. Shorten the window or turn on auto-fit.</div>
+    </div>
+    <div class="readouts" aria-live="polite">
+      <div class="ro"><b id="oF">–</b><span>Frequency</span></div>
+      <div class="ro"><b id="oT">–</b><span>Period</span></div>
+      <div class="ro"><b id="oH">–</b><span>High time</span></div>
+      <div class="ro"><b id="oL">–</b><span>Low time</span></div>
+      <div class="ro"><b id="oD">–</b><span>Duty cycle</span></div>
+    </div>
+  </section>
+
+  <section class="bench" id="bench"></section>
+
+  <section class="work" aria-label="Worked equations">
+    <div id="wkH"></div>
+    <div id="wkL"></div>
+    <div id="wkT"></div>
+    <div id="wkD"></div>
+  </section>
+  <p class="note">Uses the ideal 555 equations with thresholds at ⅓ and ⅔ V<sub>CC</sub>, so timing doesn't depend on V<sub>CC</sub>. The output high level is V<sub>CC</sub> − 1.7 V, like the ngspice model. KiCad will read about 0.3% longer because of the discharge transistor's on-resistance. The first high pulse is longer because C102 starts at 0 V.</p>
+</main>
+
+<script>
+(() => {
+// ---------- engineering notation ----------
+const PFX = {p:1e-12,n:1e-9,u:1e-6,'µ':1e-6,m:1e-3,'':1,k:1e3,K:1e3,M:1e6,meg:1e6,G:1e9};
+function parseEng(str){
+  if (str == null) return NaN;
+  let s = String(str).trim().replace(/\s+/g,'').replace(/(Ω|ohms?|F|s|V|Hz)$/i,'');
+  let m = s.match(/^(\d+)([pnuµmkKMGR])(\d+)$/);            // RKM: 4k7, 1M5, 2R2
+  if (m){ const p = m[2]==='R'?1:PFX[m[2]]; return parseFloat(m[1]+'.'+m[3])*p; }
+  m = s.match(/^([+]?\d*\.?\d+(?:e[+-]?\d+)?)(meg|Meg|MEG|[pnuµmkKMG])?$/);
+  if (!m) return NaN;
+  const p = m[2] ? PFX[m[2].toLowerCase()==='meg'?'meg':m[2]] : 1;
+  return parseFloat(m[1])*p;
+}
+function fmtEng(v,unit='',sig=4){
+  if (!isFinite(v)) return '–';
+  if (v===0) return '0 '+unit;
+  const list=[[1e9,'G'],[1e6,'M'],[1e3,'k'],[1,''],[1e-3,'m'],[1e-6,'µ'],[1e-9,'n'],[1e-12,'p']];
+  for (const [f,p] of list){
+    if (Math.abs(v) >= f*0.9995){
+      let x = v/f, d = Math.max(0, sig-1-Math.floor(Math.log10(Math.abs(x))));
+      return (+x.toFixed(d)).toString()+' '+p+unit;
+    }
+  }
+  return v.toExponential(3)+' '+unit;
+}
+const compact = (v,u) => fmtEng(v,u,4).replace(' ','');
+
+// ---------- E-series ----------
+const E = {
+  E12:[1.0,1.2,1.5,1.8,2.2,2.7,3.3,3.9,4.7,5.6,6.8,8.2],
+  E24:[1.0,1.1,1.2,1.3,1.5,1.6,1.8,2.0,2.2,2.4,2.7,3.0,3.3,3.6,3.9,4.3,4.7,5.1,5.6,6.2,6.8,7.5,8.2,9.1],
+};
+function snap(v,series){
+  if (series==='none' || !(v>0)) return v;
+  const dec = Math.floor(Math.log10(v)), base = Math.pow(10,dec);
+  let best=v, err=Infinity;
+  for (const k of [-1,0,1]) for (const e of E[series]){
+    const c = e*base*Math.pow(10,k), d = Math.abs(Math.log(c/v));
+    if (d<err){err=d;best=c;}
+  }
+  return +best.toPrecision(3);
+}
+
+// ---------- state ----------
+const DEF = {
+  parts:{
+    R101:{v:5100,min:1000,max:100000,unit:'Ω',note:'charge only'},
+    R102:{v:3000,min:1000,max:100000,unit:'Ω',note:'charge and discharge'},
+    C102:{v:150e-9,min:1e-9,max:10e-6,unit:'F',note:'timing capacitor'},
+  },
+  vcc:5, snap:'none', autofit:true, window:10e-3
+};
+let S;
+try { S = JSON.parse(localStorage.getItem('ne555-bench')||'null'); } catch(e){ S=null; }
+if (!S || !S.parts || !S.parts.R101) S = JSON.parse(JSON.stringify(DEF));
+const save = () => { try{ localStorage.setItem('ne555-bench',JSON.stringify(S)); }catch(e){} };
+
+// ---------- build controls ----------
+const bench = document.getElementById('bench');
+const els = {};
+for (const id of ['R101','R102','C102']){
+  const p = S.parts[id];
+  const card = document.createElement('div');
+  card.className='part';
+  card.innerHTML = `
+    <h2>${id} <small>${p.note}</small></h2>
+    <div class="val"><input id="${id}-v" aria-label="${id} value" inputmode="decimal" spellcheck="false"></div>
+    <input type="range" id="${id}-s" min="0" max="1000" step="1" aria-label="${id} slider">
+    <div class="limits">
+      <label class="f">Lower limit<input id="${id}-min" spellcheck="false"></label>
+      <label class="f">Upper limit<input id="${id}-max" spellcheck="false"></label>
+    </div>
+    <div class="err" id="${id}-err"></div>`;
+  bench.appendChild(card);
+  els[id] = {v:card.querySelector(`#${id}-v`), s:card.querySelector(`#${id}-s`),
+             min:card.querySelector(`#${id}-min`), max:card.querySelector(`#${id}-max`), err:card.querySelector(`#${id}-err`)};
+}
+const side = document.createElement('div');
+side.className='part side';
+side.innerHTML = `
+  <h2>Supply and view</h2>
+  <label class="f">V<sub>CC</sub> (4.5 to 16 V)<input id="vcc" spellcheck="false"></label>
+  <label class="f">Snap resistors to
+    <select id="snap"><option value="none">Any value</option><option value="E12">E12 series</option><option value="E24">E24 series</option></select>
+  </label>
+  <label class="check"><input type="checkbox" id="autofit"> Auto-fit window to 6 cycles</label>
+  <label class="f">Time window<input id="win" spellcheck="false"></label>
+  <div class="err" id="side-err"></div>
+  <button id="reset" type="button">Reset to schematic values</button>`;
+bench.appendChild(side);
+
+const toSlider = (p) => Math.round(1000*Math.log(p.v/p.min)/Math.log(p.max/p.min));
+const fromSlider = (p,s) => p.min*Math.pow(p.max/p.min, s/1000);
+
+function syncPart(id){
+  const p=S.parts[id], e=els[id];
+  if (document.activeElement!==e.v) e.v.value = compact(p.v,p.unit);
+  if (document.activeElement!==e.min) e.min.value = compact(p.min,p.unit);
+  if (document.activeElement!==e.max) e.max.value = compact(p.max,p.unit);
+  e.s.value = toSlider(p);
+  e.s.setAttribute('aria-valuetext', fmtEng(p.v,p.unit));
+}
+function syncSide(){
+  const g = (i)=>document.getElementById(i);
+  if (document.activeElement!==g('vcc')) g('vcc').value = compact(S.vcc,'V');
+  g('snap').value=S.snap; g('autofit').checked=S.autofit;
+  g('win').disabled = S.autofit;
+  if (document.activeElement!==g('win')) g('win').value = compact(S.window,'s');
+}
+
+for (const id of Object.keys(els)){
+  const p=()=>S.parts[id], e=els[id];
+  const isR = id[0]==='R';
+  e.s.addEventListener('input',()=>{
+    let v = fromSlider(p(), +e.s.value);
+    if (isR) v = Math.min(p().max, Math.max(p().min, snap(v,S.snap)));
+    else v = +v.toPrecision(3);
+    p().v=v; e.err.textContent=''; update();
+  });
+  const commitVal=()=>{
+    const v=parseEng(e.v.value);
+    if (!(v>0)){ e.err.textContent='Enter a positive value, e.g. 4.7k or 150n.'; return; }
+    p().v=v; e.err.textContent='';
+    if (v<p().min){ p().min=v; e.err.textContent='Lower limit moved to fit this value.'; }
+    if (v>p().max){ p().max=v; e.err.textContent='Upper limit moved to fit this value.'; }
+    update();
+  };
+  e.v.addEventListener('change',commitVal);
+  e.v.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){commitVal(); e.v.blur();} });
+  const commitLim=()=>{
+    const lo=parseEng(e.min.value), hi=parseEng(e.max.value);
+    if (!(lo>0) || !(hi>0)){ e.err.textContent='Limits must be positive values, e.g. 1k and 100k.'; return; }
+    if (hi<=lo){ e.err.textContent='Upper limit must be greater than lower limit.'; return; }
+    p().min=lo; p().max=hi; e.err.textContent='';
+    p().v=Math.min(hi,Math.max(lo,p().v));
+    update();
+  };
+  for (const f of [e.min,e.max]){
+    f.addEventListener('change',commitLim);
+    f.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){commitLim(); f.blur();} });
+  }
+}
+const sideErr=document.getElementById('side-err');
+document.getElementById('vcc').addEventListener('change',ev=>{
+  const v=parseEng(ev.target.value);
+  if (!(v>=4.5 && v<=16)){ sideErr.textContent='VCC must be between 4.5 V and 16 V.'; return; }
+  sideErr.textContent=''; S.vcc=v; update();
+});
+document.getElementById('snap').addEventListener('change',ev=>{
+  S.snap=ev.target.value;
+  for (const id of ['R101','R102']){ const p=S.parts[id]; p.v=Math.min(p.max,Math.max(p.min,snap(p.v,S.snap))); }
+  update();
+});
+document.getElementById('autofit').addEventListener('change',ev=>{ S.autofit=ev.target.checked; update(); });
+document.getElementById('win').addEventListener('change',ev=>{
+  const v=parseEng(ev.target.value);
+  if (!(v>0)){ sideErr.textContent='Enter a time window, e.g. 10m or 500u.'; return; }
+  sideErr.textContent=''; S.window=v; update();
+});
+document.getElementById('reset').addEventListener('click',()=>{
+  S=JSON.parse(JSON.stringify(DEF));
+  for (const id of Object.keys(els)) els[id].err.textContent='';
+  sideErr.textContent=''; update();
+});
+
+// ---------- timing ----------
+const LN2=Math.LN2, LN3=Math.log(3);
+function timing(){
+  const Ra=S.parts.R101.v, Rb=S.parts.R102.v, C=S.parts.C102.v;
+  const tauC=(Ra+Rb)*C, tauD=Rb*C;
+  const tH=LN2*tauC, tL=LN2*tauD, T=tH+tL;
+  return {Ra,Rb,C,tauC,tauD,tH,tL,T,f:1/T,D:100*tH/T,t0:LN3*tauC};
+}
+function niceStep(x){ // 1-2-5 sequence >= x
+  const e=Math.pow(10,Math.floor(Math.log10(x))), m=x/e;
+  return (m<=1?1:m<=2?2:m<=5?5:10)*e;
+}
+
+// ---------- draw ----------
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const hover=document.getElementById('hover'), overlay=document.getElementById('overlay');
+let view=null;
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function voltages(t,tm,vcc){ // returns [vout, vcap] at time t
+  if (t<tm.t0) return [vcc-1.7, vcc*(1-Math.exp(-t/tm.tauC))];
+  let u=(t-tm.t0)%tm.T;
+  if (u<tm.tL) return [0.1, (2/3)*vcc*Math.exp(-u/tm.tauD)];
+  u-=tm.tL;
+  return [vcc-1.7, vcc-(2/3)*vcc*Math.exp(-u/tm.tauC)];
+}
+
+function draw(){
+  const tm=timing(), vcc=S.vcc;
+  const r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const W=r.width, H=r.height, padL=42, padR=10, padT=10, padB=26;
+  const pw=W-padL-padR, ph=H-padT-padB;
+  let win = S.autofit ? niceStep((tm.t0+5*tm.T)/10)*10 : S.window;
+  if (S.autofit) S.window=win;
+  const tdiv=win/10, vmax=Math.ceil(vcc);
+  view={tm,win,padL,padT,pw,ph,vmax,vcc};
+  document.getElementById('tb').textContent = `${fmtEng(tdiv,'s',3)}/div, 1 V/div, window ${fmtEng(win,'s',3)}`;
+
+  ctx.clearRect(0,0,W,H);
+  // grid
+  ctx.lineWidth=1;
+  for (let i=0;i<=10;i++){
+    const x=padL+pw*i/10;
+    ctx.strokeStyle= i%5===0?css('--grid-major'):css('--grid');
+    ctx.beginPath(); ctx.moveTo(Math.round(x)+.5,padT); ctx.lineTo(Math.round(x)+.5,padT+ph); ctx.stroke();
+  }
+  ctx.fillStyle=css('--screen-ink'); ctx.font='12px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign='right'; ctx.textBaseline='middle';
+  for (let v=0; v<=vmax; v++){
+    const y=padT+ph*(1-v/vmax);
+    ctx.strokeStyle= v===0?css('--grid-major'):css('--grid');
+    ctx.beginPath(); ctx.moveTo(padL,Math.round(y)+.5); ctx.lineTo(padL+pw,Math.round(y)+.5); ctx.stroke();
+    ctx.fillText(v+' V',padL-6,y);
+  }
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  for (let i=0;i<=10;i+=2){ ctx.textAlign = i===0?'left':i===10?'right':'center'; ctx.fillText(compact(tdiv*i,'s'),padL+pw*i/10,padT+ph+6); }
+
+  // thresholds
+  ctx.setLineDash([4,4]); ctx.strokeStyle=css('--ch2'); ctx.globalAlpha=.45;
+  for (const k of [1/3,2/3]){
+    const y=padT+ph*(1-k*vcc/vmax);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+pw,y); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.globalAlpha=1;
+  ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillStyle=css('--ch2');
+  ctx.fillText('⅔ VCC',padL+4,padT+ph*(1-(2/3)*vcc/vmax)-2);
+  ctx.fillText('⅓ VCC',padL+4,padT+ph*(1-(1/3)*vcc/vmax)-2);
+
+  const cycles=(win-tm.t0)/tm.T;
+  const tooMany = cycles>pw*0.5;
+  overlay.classList.toggle('on',tooMany);
+  if (tooMany) return;
+
+  // traces: sample per half-pixel, plus exact edge points for crisp square wave
+  const N=Math.ceil(pw*2);
+  const X=t=>padL+pw*t/win, Y=v=>padT+ph*(1-v/vmax);
+  // edges list
+  const edges=[tm.t0]; let t=tm.t0;
+  while (t<win){ t+=tm.tL; edges.push(t); t+=tm.tH; edges.push(t); }
+  ctx.lineJoin='round'; ctx.lineWidth=2;
+  // OUT
+  ctx.strokeStyle=css('--ch1'); ctx.beginPath();
+  let level=vcc-1.7; ctx.moveTo(X(0),Y(level));
+  for (const e of edges){
+    if (e>win) break;
+    ctx.lineTo(X(e),Y(level)); level = level>1?0.1:vcc-1.7; ctx.lineTo(X(e),Y(level));
+  }
+  ctx.lineTo(X(win),Y(level)); ctx.stroke();
+  // capacitor
+  ctx.strokeStyle=css('--ch2'); ctx.beginPath();
+  for (let i=0;i<=N;i++){
+    const tt=win*i/N, v=voltages(tt,tm,vcc)[1];
+    i?ctx.lineTo(X(tt),Y(v)):ctx.moveTo(X(tt),Y(v));
+  }
+  ctx.stroke();
+}
+
+cv.addEventListener('mousemove',ev=>{
+  if (!view || overlay.classList.contains('on')) return;
+  const r=cv.getBoundingClientRect(), x=ev.clientX-r.left;
+  const t=(x-view.padL)/view.pw*view.win;
+  if (t<0||t>view.win){ hover.style.display='none'; return; }
+  const [vo,vc]=voltages(t,view.tm,view.vcc);
+  hover.style.display='block';
+  hover.innerHTML=`t = ${fmtEng(t,'s',4)}<br><span style="color:var(--ch1)">V(OUT) = ${vo.toFixed(2)} V</span><br><span style="color:var(--ch2)">V(TRIG) = ${vc.toFixed(3)} V</span>`;
+  hover.style.left = (x > r.width*0.6 ? 8 : r.width-hover.offsetWidth-8)+'px';
+});
+cv.addEventListener('mouseleave',()=>hover.style.display='none');
+
+// ---------- worked maths ----------
+function worked(tm){
+  const a=compact(tm.Ra,'Ω'), b=compact(tm.Rb,'Ω'), c=compact(tm.C,'F');
+  document.getElementById('wkH').innerHTML=`<h3>High time</h3>
+   <p class="eq"><em>t</em><sub>H</sub> = 0.693 × (R101 + R102) × C102</p>
+   <p class="eq">= 0.693 × (${a} + ${b}) × ${c}</p>
+   <p class="eq">= 0.693 × ${compact(tm.Ra+tm.Rb,'Ω')} × ${c}</p>
+   <p class="eq">= 0.693 × ${fmtEng(tm.tauC,'s')}</p>
+   <p class="eq r">= ${fmtEng(tm.tH,'s')}</p>`;
+  document.getElementById('wkL').innerHTML=`<h3>Low time</h3>
+   <p class="eq"><em>t</em><sub>L</sub> = 0.693 × R102 × C102</p>
+   <p class="eq">= 0.693 × ${b} × ${c}</p>
+   <p class="eq">= 0.693 × ${fmtEng(tm.tauD,'s')}</p>
+   <p class="eq r">= ${fmtEng(tm.tL,'s')}</p>`;
+  document.getElementById('wkT').innerHTML=`<h3>Period and frequency</h3>
+   <p class="eq"><em>T</em> = <em>t</em><sub>H</sub> + <em>t</em><sub>L</sub> = ${fmtEng(tm.tH,'s')} + ${fmtEng(tm.tL,'s')}</p>
+   <p class="eq r">= ${fmtEng(tm.T,'s')}</p>
+   <p class="eq"><em>f</em> = 1 / <em>T</em> = 1 / ${fmtEng(tm.T,'s')}</p>
+   <p class="eq r">= ${fmtEng(tm.f,'Hz')}</p>`;
+  document.getElementById('wkD').innerHTML=`<h3>Duty cycle</h3>
+   <p class="eq"><em>D</em> = 100 × <em>t</em><sub>H</sub> / <em>T</em></p>
+   <p class="eq">= 100 × ${fmtEng(tm.tH,'s')} / ${fmtEng(tm.T,'s')}</p>
+   <p class="eq r">= ${tm.D.toFixed(1)} %</p>
+   <p class="eq">First pulse (C102 from 0 V) = 1.099 × ${fmtEng(tm.tauC,'s')} = ${fmtEng(tm.t0,'s')}</p>`;
+}
+
+// ---------- update ----------
+let raf=0;
+function update(){
+  for (const id of Object.keys(els)) syncPart(id);
+  syncSide();
+  const tm=timing();
+  document.getElementById('oF').textContent=fmtEng(tm.f,'Hz');
+  document.getElementById('oT').textContent=fmtEng(tm.T,'s');
+  document.getElementById('oH').textContent=fmtEng(tm.tH,'s');
+  document.getElementById('oL').textContent=fmtEng(tm.tL,'s');
+  document.getElementById('oD').textContent=tm.D.toFixed(1)+' %';
+  worked(tm);
+  cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{ draw(); syncSide(); });
+  save();
+}
+new ResizeObserver(()=>{ cancelAnimationFrame(raf); raf=requestAnimationFrame(draw); }).observe(cv);
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>draw());
+new MutationObserver(()=>draw()).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+update();
+})();
+</script>
+</body>
+</html>
