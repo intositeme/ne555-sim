@@ -48,12 +48,20 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 .overlay.on{display:flex}
 .hover{position:absolute;top:8px;left:8px;background:#0B1118E6;border:1px solid var(--grid-major);border-radius:6px;
   padding:6px 9px;font-size:.85rem;pointer-events:none;display:none;line-height:1.35}
-.readouts{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--grid-major);margin:12px -14px 0}
+.readouts{display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--grid-major);margin:12px -14px 0}
 .ro{padding:12px 14px 14px;border-left:1px solid var(--grid)}
 .ro:first-child{border-left:0}
 .ro b{display:block;font-family:var(--font-c);font-weight:600;font-size:clamp(1.35rem,2.6vw,1.9rem);color:#EAF1F8;line-height:1.1}
 .ro span{font-size:.85rem}
 
+/* piano */
+.piano{border-top:1px solid var(--grid-major);margin:0 -14px;padding:10px 14px 14px}
+.piano p{margin:0 0 8px;font-size:.9rem}
+.kb{position:relative;display:flex;height:56px;border-radius:4px;overflow:hidden}
+.kb .w{flex:1;background:#DCE3EA;border-right:1px solid #8A99A8}
+.kb .w:last-child{border-right:0}
+.kb .b{position:absolute;top:0;height:60%;width:1.15%;background:#0B1118;border-radius:0 0 2px 2px}
+.kb .on{background:var(--ch1)!important}
 /* controls */
 .bench{display:grid;align-items:start;grid-template-columns:repeat(3,1fr) minmax(220px,.9fr);gap:14px;margin-top:18px}
 .part{background:var(--panel-2);border:1px solid var(--rule);border-radius:10px;padding:14px 16px 16px}
@@ -95,6 +103,7 @@ button:hover{border-color:var(--knob)}
   .readouts{grid-template-columns:repeat(3,1fr)}
   .ro:nth-child(4){border-left:0}
   .ro:nth-child(n+4){border-top:1px solid var(--grid)}
+  .kb{height:44px}
 }
 </style>
 </head>
@@ -122,6 +131,11 @@ button:hover{border-color:var(--knob)}
       <div class="ro"><b id="oH">–</b><span>High time</span></div>
       <div class="ro"><b id="oL">–</b><span>Low time</span></div>
       <div class="ro"><b id="oD">–</b><span>Duty cycle</span></div>
+      <div class="ro"><b id="oN">–</b><span id="oNs">Nearest piano key</span></div>
+    </div>
+    <div class="piano">
+      <p id="pianoTxt"></p>
+      <div class="kb" id="kb" aria-hidden="true"></div>
     </div>
   </section>
 
@@ -439,6 +453,36 @@ function worked(tm){
    <p class="eq">First pulse (C102 from 0 V) = 1.099 × ${fmtEng(tm.tauC,'s')} = ${fmtEng(tm.t0,'s')}</p>`;
 }
 
+// ---------- piano ----------
+const NOTES=['A','A♯','B','C','C♯','D','D♯','E','F','F♯','G','G♯'];
+const kbEl=document.getElementById('kb'), keyEls=[];
+(()=>{ let wi=0;
+  for (let k=1;k<=88;k++){
+    const nm=NOTES[(k-1)%12], d=document.createElement('div');
+    if (nm.includes('♯')){ d.className='b'; d.style.left=`calc(${wi*100/52}% - 0.575%)`; }
+    else { d.className='w'; wi++; }
+    keyEls[k]=d; kbEl.appendChild(d);
+  }
+  for (const k in keyEls) if (keyEls[k].className==='b') kbEl.appendChild(keyEls[k]); // black keys on top
+})();
+function pianoKey(f){
+  const n=12*Math.log2(f/440)+49, k=Math.round(n);
+  const name=NOTES[((k-1)%12+12)%12], oct=Math.floor((k+8)/12);
+  return {k, name:name+oct, cents:Math.round((n-k)*100), fk:440*Math.pow(2,(k-49)/12)};
+}
+let lastKey=0;
+function showPiano(f){
+  const p=pianoKey(f), c=(p.cents>0?'+':p.cents<0?'−':'±')+Math.abs(p.cents)+' ¢';
+  document.getElementById('oN').textContent=`${p.name} ${c}`;
+  if (keyEls[lastKey]) keyEls[lastKey].classList.remove('on');
+  const inRange=p.k>=1&&p.k<=88;
+  if (inRange){ keyEls[p.k].classList.add('on'); lastKey=p.k; }
+  const off = p.cents===0 ? 'right on' : `${Math.abs(p.cents)} cents ${p.cents>0?'sharp':'flat'}`;
+  document.getElementById('pianoTxt').textContent = inRange
+    ? `${fmtEng(f,'Hz')} is closest to ${p.name} (key ${p.k} of 88, ${fmtEng(p.fk,'Hz')}), ${off}.`
+    : `${fmtEng(f,'Hz')} is outside the piano's range (27.5 Hz to 4.186 kHz). The nearest note name is ${p.name}, ${off}.`;
+}
+
 // ---------- update ----------
 let raf=0;
 function update(){
@@ -450,6 +494,7 @@ function update(){
   document.getElementById('oH').textContent=fmtEng(tm.tH,'s');
   document.getElementById('oL').textContent=fmtEng(tm.tL,'s');
   document.getElementById('oD').textContent=tm.D.toFixed(1)+' %';
+  showPiano(tm.f);
   worked(tm);
   cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{ draw(); syncSide(); });
   save();
